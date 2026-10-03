@@ -15,6 +15,9 @@ import {
   Team,
   BatterMatchStats,
   BowlerMatchStats,
+  BroadcastVideoMode,
+  BroadcastLowerThird,
+  AdminVideoOperationState,
 } from '../types/cricket';
 import {
   INITIAL_CAMERAS,
@@ -101,15 +104,40 @@ interface CricketContextType {
   clearScoresForNextMatch: (nextMatchTitle?: string) => void;
   updatePlayerDetails: (teamId: string, playerId: string, updates: Partial<Player>) => void;
   updatePlayerMatchStats: (playerId: string, battingUpdates?: Partial<BatterMatchStats>, bowlingUpdates?: Partial<BowlerMatchStats>) => void;
-  addNewPlayerToTeam: (teamId: string, player: Player) => void;
+  addNewPlayerToTeam: (teamId: string, player: Player, assignAs?: 'STRIKER' | 'NON_STRIKER' | 'BOWLER' | 'BENCH') => void;
+  removePlayerFromTeam: (teamId: string, playerId: string) => void;
   switchStrike: () => void;
   setActiveBowler: (bowlerId: string) => void;
+  setActiveStriker: (strikerId: string) => void;
+  setActiveNonStriker: (nonStrikerId: string) => void;
+
+  // Admin Video Director Operations (What viewers view on the video in viewer dashboard)
+  adminVideoState: AdminVideoOperationState;
+  operateBroadcastCamera: (cameraId: string) => void;
+  operateVideoMode: (mode: BroadcastVideoMode, extra?: { replayTitle?: string; replaySpeed?: number }) => void;
+  operateLowerThird: (lowerThird: BroadcastLowerThird) => void;
+  clearLowerThird: () => void;
+  operateDirectorNotice: (notice: string | undefined) => void;
+  setForceFollowAdmin: (force: boolean) => void;
 }
 
 const CricketContext = createContext<CricketContextType | null>(null);
 
 const STORAGE_KEY_MATCH = 'agni_sports_match_state_v1';
 const STORAGE_KEY_CAMERAS = 'agni_sports_cameras_v1';
+const STORAGE_KEY_ADMIN_VIDEO = 'agni_sports_admin_video_v1';
+
+const INITIAL_ADMIN_VIDEO: AdminVideoOperationState = {
+  activeCameraId: 'cam-1',
+  videoMode: 'LIVE_FEED',
+  replaySpeed: 0.5,
+  replayTitle: 'SLOW-MO REPLAY',
+  lowerThird: { type: 'NONE' },
+  directorNotice: undefined,
+  forceFollowAdmin: true,
+  isBroadcastingPhoneCam: false,
+  timestamp: Date.now(),
+};
 
 export const CricketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // 1. Initialize State
@@ -155,6 +183,17 @@ export const CricketProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isAudioMuted, setIsAudioMuted] = useState<boolean>(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState<boolean>(true);
   const [pendingVoiceCommand, setPendingVoiceCommand] = useState<VoiceCommandProposal | null>(null);
+
+  const [adminVideoState, setAdminVideoState] = useState<AdminVideoOperationState>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_ADMIN_VIDEO);
+      if (!saved) return INITIAL_ADMIN_VIDEO;
+      const parsed = JSON.parse(saved);
+      return { ...INITIAL_ADMIN_VIDEO, ...parsed };
+    } catch {
+      return INITIAL_ADMIN_VIDEO;
+    }
+  });
 
   const [reviewState, setReviewState] = useState<ReviewState>({
     isActive: false,
@@ -215,6 +254,12 @@ export const CricketProvider: React.FC<{ children: React.ReactNode }> = ({ child
           setProgramCameraId(event.data.payload);
         } else if (event.data?.type === 'REVIEW_UPDATE') {
           setReviewState(event.data.payload);
+        } else if (event.data?.type === 'ADMIN_VIDEO_OPERATION') {
+          setAdminVideoState(event.data.payload);
+          if (event.data.payload.activeCameraId) {
+            setActiveCameraId(event.data.payload.activeCameraId);
+            setProgramCameraId(event.data.payload.activeCameraId);
+          }
         }
       };
     } catch {
@@ -254,6 +299,15 @@ export const CricketProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     broadcastChange('CAMERA_UPDATE', cameras);
   }, [cameras, broadcastChange]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_ADMIN_VIDEO, JSON.stringify(adminVideoState));
+    } catch {
+      // Storage quota or disabled
+    }
+    broadcastChange('ADMIN_VIDEO_OPERATION', adminVideoState);
+  }, [adminVideoState, broadcastChange]);
 
   // 3. Audio & Voice Settings Sync
   useEffect(() => {
@@ -1155,24 +1209,217 @@ export const CricketProvider: React.FC<{ children: React.ReactNode }> = ({ child
     []
   );
 
-  // Add a new player to team
-  const addNewPlayerToTeam = useCallback((teamId: string, newPlayer: Player) => {
+  // Add a new player to team with optional immediate role assignment
+  const addNewPlayerToTeam = useCallback(
+    (
+      teamId: string,
+      newPlayer: Player,
+      assignAs?: 'STRIKER' | 'NON_STRIKER' | 'BOWLER' | 'BENCH'
+    ) => {
+      setMatch((prev) => {
+        const updateTeam = (team: Team) => {
+          if (team.id !== teamId) return team;
+          return {
+            ...team,
+            players: [...team.players.filter((p) => p.id !== newPlayer.id), newPlayer],
+          };
+        };
+
+        const updatedTeamA = updateTeam(prev.teamA);
+        const updatedTeamB = updateTeam(prev.teamB);
+
+        let nextStriker = prev.activeStrikerId;
+        let nextNonStriker = prev.activeNonStrikerId;
+        let nextBowler = prev.activeBowlerId;
+        const updatedBattingStats = { ...prev.battingStats };
+        const updatedBowlingStats = { ...prev.bowlingStats };
+
+        if (assignAs === 'STRIKER') {
+          nextStriker = newPlayer.id;
+          updatedBattingStats[newPlayer.id] = {
+            playerId: newPlayer.id,
+            runs: 0,
+            balls: 0,
+            fours: 0,
+            sixes: 0,
+            strikeRate: 0,
+            isOut: false,
+            isOnStrike: true,
+          };
+        } else if (assignAs === 'NON_STRIKER') {
+          nextNonStriker = newPlayer.id;
+          updatedBattingStats[newPlayer.id] = {
+            playerId: newPlayer.id,
+            runs: 0,
+            balls: 0,
+            fours: 0,
+            sixes: 0,
+            strikeRate: 0,
+            isOut: false,
+            isOnStrike: false,
+          };
+        } else if (assignAs === 'BOWLER') {
+          nextBowler = newPlayer.id;
+          updatedBowlingStats[newPlayer.id] = {
+            playerId: newPlayer.id,
+            overs: 0,
+            maidens: 0,
+            runsConceded: 0,
+            wickets: 0,
+            economy: 0,
+            dots: 0,
+            wides: 0,
+            noBalls: 0,
+          };
+        }
+
+        return {
+          ...prev,
+          teamA: updatedTeamA,
+          teamB: updatedTeamB,
+          activeStrikerId: nextStriker,
+          activeNonStrikerId: nextNonStriker,
+          activeBowlerId: nextBowler,
+          battingStats: updatedBattingStats,
+          bowlingStats: updatedBowlingStats,
+        };
+      });
+      audioAnnouncer.announce(`Registered ${newPlayer.name} to squad.`);
+    },
+    []
+  );
+
+  const removePlayerFromTeam = useCallback((teamId: string, playerId: string) => {
     setMatch((prev) => {
       const updateTeam = (team: Team) => {
         if (team.id !== teamId) return team;
         return {
           ...team,
-          players: [...team.players, newPlayer],
+          players: team.players.filter((p) => p.id !== playerId),
         };
       };
-
       return {
         ...prev,
         teamA: updateTeam(prev.teamA),
         teamB: updateTeam(prev.teamB),
       };
     });
-    audioAnnouncer.announce(`Added ${newPlayer.name} to team roster.`);
+    audioAnnouncer.announce('Player removed from team squad.');
+  }, []);
+
+  const setActiveStriker = useCallback((strikerId: string) => {
+    setMatch((prev) => ({
+      ...prev,
+      activeStrikerId: strikerId,
+      battingStats: {
+        ...prev.battingStats,
+        [strikerId]: prev.battingStats[strikerId] || {
+          playerId: strikerId,
+          runs: 0,
+          balls: 0,
+          fours: 0,
+          sixes: 0,
+          strikeRate: 0,
+          isOut: false,
+          isOnStrike: true,
+        },
+      },
+    }));
+  }, []);
+
+  const setActiveNonStriker = useCallback((nonStrikerId: string) => {
+    setMatch((prev) => ({
+      ...prev,
+      activeNonStrikerId: nonStrikerId,
+      battingStats: {
+        ...prev.battingStats,
+        [nonStrikerId]: prev.battingStats[nonStrikerId] || {
+          playerId: nonStrikerId,
+          runs: 0,
+          balls: 0,
+          fours: 0,
+          sixes: 0,
+          strikeRate: 0,
+          isOut: false,
+          isOnStrike: false,
+        },
+      },
+    }));
+  }, []);
+
+  // Admin Video Director Operations
+  const operateBroadcastCamera = useCallback((cameraId: string) => {
+    setActiveCameraId(cameraId);
+    setProgramCameraId(cameraId);
+    setAdminVideoState((prev) => ({
+      ...prev,
+      activeCameraId: cameraId,
+      videoMode: 'LIVE_FEED',
+      timestamp: Date.now(),
+    }));
+    audioAnnouncer.announce(`Director broadcast switched to camera ${cameraId.replace('cam-', '')}.`);
+  }, []);
+
+  const operateVideoMode = useCallback(
+    (mode: BroadcastVideoMode, extra?: { replayTitle?: string; replaySpeed?: number }) => {
+      setAdminVideoState((prev) => ({
+        ...prev,
+        videoMode: mode,
+        replayTitle:
+          extra?.replayTitle ||
+          (mode === 'REPLAY_SLOWMO' ? 'SLOW-MO REPLAY 0.5x' : prev.replayTitle),
+        replaySpeed: extra?.replaySpeed || prev.replaySpeed,
+        timestamp: Date.now(),
+      }));
+
+      if (mode === 'REPLAY_SLOWMO') {
+        audioAnnouncer.announce('Director broadcasting instant slow-motion replay to viewers.');
+      } else if (mode === 'DRS_REVIEW') {
+        audioAnnouncer.announce('Director broadcasting DRS optical tracking review.');
+      } else if (mode === 'LIVE_FEED') {
+        audioAnnouncer.announce('Director returning to live stadium broadcast.');
+      }
+    },
+    []
+  );
+
+  const operateLowerThird = useCallback((lowerThird: BroadcastLowerThird) => {
+    setAdminVideoState((prev) => ({
+      ...prev,
+      lowerThird,
+      timestamp: Date.now(),
+    }));
+    audioAnnouncer.announce('Broadcast graphics pushed to viewers.');
+  }, []);
+
+  const clearLowerThird = useCallback(() => {
+    setAdminVideoState((prev) => ({
+      ...prev,
+      lowerThird: { type: 'NONE' },
+      timestamp: Date.now(),
+    }));
+  }, []);
+
+  const operateDirectorNotice = useCallback((notice: string | undefined) => {
+    setAdminVideoState((prev) => ({
+      ...prev,
+      directorNotice: notice,
+      lowerThird: notice
+        ? { type: 'CUSTOM_TICKER', title: 'DIRECTOR BULLETIN', subtitle: notice }
+        : prev.lowerThird,
+      timestamp: Date.now(),
+    }));
+    if (notice) {
+      audioAnnouncer.announce(`Director notice broadcast: ${notice}`);
+    }
+  }, []);
+
+  const setForceFollowAdmin = useCallback((force: boolean) => {
+    setAdminVideoState((prev) => ({
+      ...prev,
+      forceFollowAdmin: force,
+      timestamp: Date.now(),
+    }));
   }, []);
 
   const value = useMemo(
@@ -1215,8 +1462,18 @@ export const CricketProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updatePlayerDetails,
       updatePlayerMatchStats,
       addNewPlayerToTeam,
+      removePlayerFromTeam,
       switchStrike,
       setActiveBowler,
+      setActiveStriker,
+      setActiveNonStriker,
+      adminVideoState,
+      operateBroadcastCamera,
+      operateVideoMode,
+      operateLowerThird,
+      clearLowerThird,
+      operateDirectorNotice,
+      setForceFollowAdmin,
     }),
     [
       match,
@@ -1250,8 +1507,18 @@ export const CricketProvider: React.FC<{ children: React.ReactNode }> = ({ child
       updatePlayerDetails,
       updatePlayerMatchStats,
       addNewPlayerToTeam,
+      removePlayerFromTeam,
       switchStrike,
       setActiveBowler,
+      setActiveStriker,
+      setActiveNonStriker,
+      adminVideoState,
+      operateBroadcastCamera,
+      operateVideoMode,
+      operateLowerThird,
+      clearLowerThird,
+      operateDirectorNotice,
+      setForceFollowAdmin,
     ]
   );
 

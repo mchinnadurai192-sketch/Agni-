@@ -225,3 +225,25 @@ export interface SystemHealth {
   cpuLoadPercent: number;
   memoryUsagePercent: number;
 }
+
+export type BroadcastVideoMode = 'LIVE_FEED' | 'REPLAY_SLOWMO' | 'HIGHLIGHT' | 'DRS_REVIEW';
+
+export interface BroadcastLowerThird {
+  type: 'NONE' | 'BATTER_SPOTLIGHT' | 'BOWLER_SPOTLIGHT' | 'PARTNERSHIP' | 'TARGET_TRACKER' | 'CUSTOM_TICKER';
+  playerId?: string;
+  title?: string;
+  subtitle?: string;
+  extraInfo?: string;
+}
+
+export interface AdminVideoOperationState {
+  activeCameraId: string;
+  videoMode: BroadcastVideoMode;
+  replaySpeed: number; // e.g. 0.5 for slow-motion
+  replayTitle?: string;
+  lowerThird: BroadcastLowerThird;
+  directorNotice?: string;
+  forceFollowAdmin: boolean;
+  isBroadcastingPhoneCam?: boolean;
+  timestamp: number;
+}

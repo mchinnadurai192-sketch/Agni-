@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RotateCcw, ArrowRightLeft, ShieldAlert, Sparkles, Check, AlertCircle } from 'lucide-react';
+import { RotateCcw, ArrowRightLeft, ShieldAlert, Sparkles, Check, AlertCircle, Flame } from 'lucide-react';
 import { useCricket } from '../../context/CricketContext';
 import { ExtraType, WicketType, LengthCategory } from '../../types/cricket';
 import { AdminPhoneCameraTransmitter } from './AdminPhoneCameraTransmitter';
@@ -11,8 +11,11 @@ export const ScoreControlPad: React.FC = () => {
     undoLastBall,
     switchStrike,
     setActiveBowler,
+    setActiveStriker,
+    setActiveNonStriker,
     startUmpireReview,
     clearScoresForNextMatch,
+    operateLowerThird,
   } = useCricket();
 
   // Wicket modal state
@@ -287,6 +290,105 @@ export const ScoreControlPad: React.FC = () => {
         </div>
       </div>
 
+      {/* Active Batter & Bowler Controls & Spotlight */}
+      <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 space-y-3 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="font-bold uppercase tracking-wider text-orange-400 text-[11px] flex items-center gap-1.5">
+            <Flame className="w-3.5 h-3.5" />
+            Active Batter & Bowler Management
+          </span>
+          <span className="text-[10px] text-zinc-500">
+            Select on-field players or broadcast spotlight to viewers
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Striker Select */}
+          <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase text-orange-400">⚡ Active Striker</span>
+              <button
+                onClick={() => {
+                  if (!striker) return;
+                  operateLowerThird({
+                    type: 'BATTER_SPOTLIGHT',
+                    playerId: striker.id,
+                    title: `${striker.name.toUpperCase()} (JRSY #${striker.jerseyNumber})`,
+                    subtitle: `${striker.battingStyle} · ${match.battingStats[striker.id]?.runs || 0} runs (${match.battingStats[striker.id]?.balls || 0}b)`,
+                    extraInfo: `4s: ${match.battingStats[striker.id]?.fours || 0} · 6s: ${match.battingStats[striker.id]?.sixes || 0}`,
+                  });
+                }}
+                className="text-[10px] text-orange-400 hover:text-white font-bold bg-orange-950/60 px-1.5 py-0.5 rounded border border-orange-500/40"
+                title="Push striker card to viewers' live video"
+              >
+                📺 Spotlight
+              </button>
+            </div>
+            <select
+              value={match.activeStrikerId}
+              onChange={(e) => setActiveStriker(e.target.value)}
+              className="w-full py-1.5 px-2 rounded bg-zinc-950 border border-zinc-700 text-white font-semibold text-xs"
+            >
+              {battingTeam.players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  #{p.jerseyNumber} {p.name} ({p.role})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Non-Striker Select */}
+          <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 space-y-1.5">
+            <span className="text-[10px] font-bold uppercase text-zinc-400 block">Non-Striker at Crease</span>
+            <select
+              value={match.activeNonStrikerId}
+              onChange={(e) => setActiveNonStriker(e.target.value)}
+              className="w-full py-1.5 px-2 rounded bg-zinc-950 border border-zinc-700 text-white font-semibold text-xs"
+            >
+              {battingTeam.players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  #{p.jerseyNumber} {p.name} ({p.role})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Bowler Select */}
+          <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase text-blue-400">🎯 Active Bowler</span>
+              <button
+                onClick={() => {
+                  if (!bowler) return;
+                  operateLowerThird({
+                    type: 'BOWLER_SPOTLIGHT',
+                    playerId: bowler.id,
+                    title: `${bowler.name.toUpperCase()} (JRSY #${bowler.jerseyNumber})`,
+                    subtitle: `${bowler.bowlingStyle} · ${match.bowlingStats[bowler.id]?.wickets || 0}/${match.bowlingStats[bowler.id]?.runsConceded || 0} (${match.bowlingStats[bowler.id]?.overs || 0} ov)`,
+                    extraInfo: `Economy: ${match.bowlingStats[bowler.id]?.economy || '0.0'}`,
+                  });
+                }}
+                className="text-[10px] text-blue-400 hover:text-white font-bold bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-500/40"
+                title="Push bowler card to viewers' live video"
+              >
+                📺 Spotlight
+              </button>
+            </div>
+            <select
+              value={match.activeBowlerId}
+              onChange={(e) => setActiveBowler(e.target.value)}
+              className="w-full py-1.5 px-2 rounded bg-zinc-950 border border-zinc-700 text-white font-semibold text-xs"
+            >
+              {bowlingTeam.players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  #{p.jerseyNumber} {p.name} ({p.role})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* Operator Utility Actions: Undo, Rotate Strike, Bowler, DRS Review */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-zinc-800 text-xs">
         <div className="flex items-center gap-2">
@@ -308,26 +410,10 @@ export const ScoreControlPad: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Change Bowler Selector */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-zinc-400">Active Bowler:</span>
-            <select
-              value={match.activeBowlerId}
-              onChange={(e) => setActiveBowler(e.target.value)}
-              className="p-1.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 font-semibold"
-            >
-              {bowlingTeam.players.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.role})
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* Trigger Umpire Review DRS */}
           <button
             onClick={() => startUmpireReview({ reviewType: 'WIDE_CHECK', requestedBy: 'UMPIRE' })}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold transition-colors shadow"
           >
             <ShieldAlert className="w-4 h-4" />
             <span>Trigger DRS Review</span>

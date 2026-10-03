@@ -34,6 +34,7 @@ import { UmpireReviewModal } from './UmpireReviewModal';
 import { NewMatchModal } from '../match/NewMatchModal';
 import { PlayerDetailsEditor } from './PlayerDetailsEditor';
 import { AIBallAnalysisCard } from '../viewer/AIBallAnalysisCard';
+import { AdminVideoDirectorConsole } from './AdminVideoDirectorConsole';
 
 export const AdminControlRoom: React.FC = () => {
   const {
@@ -57,7 +58,7 @@ export const AdminControlRoom: React.FC = () => {
 
   // Active module tab
   const [activeTab, setActiveTab] = useState<
-    'SCORING' | 'AI_ANALYSIS' | 'PLAYERS' | 'CAMERAS' | 'VOICE' | 'SYSTEM' | 'CONFIG'
+    'SCORING' | 'VIDEO_DIRECTOR' | 'PLAYERS' | 'CAMERAS' | 'AI_ANALYSIS' | 'VOICE' | 'SYSTEM' | 'CONFIG'
   >('SCORING');
 
   const handleVerifyAuth = (e: React.FormEvent) => {
@@ -340,17 +341,17 @@ export const AdminControlRoom: React.FC = () => {
           <span>Live Ball Scoring Pad</span>
         </button>
 
-        {/* Tab 2: AI Ball Analysis & Speedometer Gauge (Added to Control Room) */}
+        {/* Tab 2: Operate Viewers' Live Video (Director Console) */}
         <button
-          onClick={() => setActiveTab('AI_ANALYSIS')}
+          onClick={() => setActiveTab('VIDEO_DIRECTOR')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors whitespace-nowrap ${
-            activeTab === 'AI_ANALYSIS'
+            activeTab === 'VIDEO_DIRECTOR'
               ? 'bg-orange-600 text-white shadow-md'
               : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
           }`}
         >
-          <Gauge className="w-4 h-4 text-orange-400" />
-          <span>AI Ball Analysis & Speed</span>
+          <Tv className="w-4 h-4 text-orange-400" />
+          <span>Operate Viewers' Video</span>
         </button>
 
         {/* Tab 3: All Players Details & Stats Editor */}
@@ -379,7 +380,20 @@ export const AdminControlRoom: React.FC = () => {
           <span>6-Camera Master Switcher</span>
         </button>
 
-        {/* Tab 5: Voice Commands & Mic */}
+        {/* Tab 5: AI Ball Analysis & Speedometer Gauge */}
+        <button
+          onClick={() => setActiveTab('AI_ANALYSIS')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors whitespace-nowrap ${
+            activeTab === 'AI_ANALYSIS'
+              ? 'bg-orange-600 text-white shadow-md'
+              : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+          }`}
+        >
+          <Gauge className="w-4 h-4 text-orange-400" />
+          <span>AI Ball Telemetry</span>
+        </button>
+
+        {/* Tab 6: Voice Commands & Mic */}
         <button
           onClick={() => setActiveTab('VOICE')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors whitespace-nowrap ${
@@ -392,7 +406,7 @@ export const AdminControlRoom: React.FC = () => {
           <span>Voice Commands & Mic</span>
         </button>
 
-        {/* Tab 6: System Health */}
+        {/* Tab 7: System Health */}
         <button
           onClick={() => setActiveTab('SYSTEM')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors whitespace-nowrap ${
@@ -405,7 +419,7 @@ export const AdminControlRoom: React.FC = () => {
           <span>System Health & Nodes</span>
         </button>
 
-        {/* Tab 7: Match Config */}
+        {/* Tab 8: Match Config */}
         <button
           onClick={() => setActiveTab('CONFIG')}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-colors whitespace-nowrap ${
@@ -434,6 +448,7 @@ export const AdminControlRoom: React.FC = () => {
             </div>
           </div>
         )}
+        {activeTab === 'VIDEO_DIRECTOR' && <AdminVideoDirectorConsole />}
         {activeTab === 'AI_ANALYSIS' && <AIBallAnalysisCard />}
         {activeTab === 'PLAYERS' && <PlayerDetailsEditor />}
         {activeTab === 'CAMERAS' && <CameraControlHub />}

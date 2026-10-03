@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useCricket } from '../../context/CricketContext';
 import { Player, Team } from '../../types/cricket';
+import { PlayerDetailCardModal } from '../common/PlayerDetailCardModal';
 
 interface PlayerScoreboardModalProps {
   isOpen: boolean;
@@ -48,7 +49,15 @@ export const PlayerScoreboardModal: React.FC<PlayerScoreboardModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto select-none animate-in fade-in duration-200">
+    <>
+      {selectedPlayerForDetail && (
+        <PlayerDetailCardModal
+          player={selectedPlayerForDetail}
+          onClose={() => setSelectedPlayerForDetail(null)}
+        />
+      )}
+
+      <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-y-auto select-none animate-in fade-in duration-200">
       <div className="w-full max-w-5xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[92vh]">
         {/* Modal Top Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-4 bg-zinc-950 border-b border-zinc-800 shrink-0">
@@ -237,9 +246,11 @@ export const PlayerScoreboardModal: React.FC<PlayerScoreboardModalProps> = ({
                         return (
                           <tr
                             key={player.id}
-                            className={`hover:bg-zinc-900/50 transition-colors ${
+                            onClick={() => setSelectedPlayerForDetail(player)}
+                            className={`hover:bg-zinc-800/60 transition-colors cursor-pointer group ${
                               isCurrentlyBatting ? 'bg-orange-950/20' : ''
                             }`}
+                            title="Click to view complete player details"
                           >
                             <td className="py-3 px-4 font-sans">
                               <div className="flex items-center gap-2">
@@ -346,9 +357,11 @@ export const PlayerScoreboardModal: React.FC<PlayerScoreboardModalProps> = ({
                         return (
                           <tr
                             key={player.id}
-                            className={`hover:bg-zinc-900/50 transition-colors ${
+                            onClick={() => setSelectedPlayerForDetail(player)}
+                            className={`hover:bg-zinc-800/60 transition-colors cursor-pointer group ${
                               isCurrentBowler ? 'bg-blue-950/20' : ''
                             }`}
+                            title="Click to view complete player details"
                           >
                             <td className="py-3 px-4 font-sans">
                               <div className="flex items-center gap-2">
@@ -542,5 +555,6 @@ export const PlayerScoreboardModal: React.FC<PlayerScoreboardModalProps> = ({
         </div>
       </div>
     </div>
+    </>
   );
 };
