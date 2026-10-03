@@ -1,0 +1,11 @@
+{
+  "name": "Remix THAMIYANUR AGNI SPORTS OTT",
+  "description": "Live AI Cricket OTT platform featuring 6-camera live switching, real-time ball analysis \u0026 speed tracking, automated commentary, DRS umpire review, and secret control room.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
